@@ -1,0 +1,66 @@
+###ASSEMBLY WITH TRINITY####
+
+> The full basic command is in the line below, which assumes "unstranded" mRNA library. 
+
+> But if the data are stranded, add "--SS_lib_type RF" to the command line.
+
+> Also, an excessive number of reads can be bad if not normalized. If your data have > 150 million reads, REMOVE the "--no_normalize_reads" from the command line. This will activate
+the in-silico normalization.
+
+> the "--output" command creates a directory in which the final fasta file will be placed.
+
+
+# Full command (assumes unstranded, or unknown):
+
+Trinity --seqType fq --trimmomatic --CPU 16 --max_memory 200G --full_cleanup --left SRR10208642_1.clean.fastq.gz --right SRR10208642_2.clean.fastq.gz --output species_trinity_dir
+------------------------------------------------------------------------------------------------------------------------
+####TRANSDECODER####
+
+STEP 1 - Predict long ORFs
+
+TransDecoder/TransDecoder.LongOrfs -t SpeciesName.fasta
+
+
+## For each transcriptome fasta file, the main output is placed in a directory labeled something like "basename.fasta.transdecoder_dir"
+## These directories need to remain intact for the final step, so don't delete, move, or rename anything.
+
+
+------------------------------------------------------------------------------------------------------------------------
+
+
+STEP 2 - Blast protein file against Uniprot
+
+## In the ouput directory from STEP 1, you will find a protein file called "longest_orfs.pep" (no basename, just that exactly).
+## Because this file needs to stay intact for the final step, make a copy of the file, then rename the copy with the species name (e.g. SpeciesName_longest_orfs.pep) to use in blast.
+
+#Run a blastp for the .pep file:
+blastp -query SpeciesName_longest_orfs.pep -db /nfs0/IB/Barreto_Lab/scratch/blastable_db/uniprot_sprot.fasta  -max_target_seqs 1 -outfmt 6 -evalue 1e-5 -num_threads 12 -out SpeciesName_blastp.txt' -r blastp -P 12 -q barreto
+
+------------------------------------------------------------------------------------------------------------------------
+
+
+STEP 3 - Predict best model for each transcript, with help from the blastp.txt output from STEP 2
+
+## Run the command below from the same directory as you ran STEP 1, so that it can find the appropriate directories from STEP1.
+## Note that the input fasta here is the same original transcriptome assembly used in STEP 1 (i.e. NOT some output from STEP 1).
+
+TransDecoder/TransDecoder.Predict -t SpeciesName.fasta --retain_blastp_hits SpeciesName_blastp.txt
+
+
+## For each input fasta, the final output will be in four different file formats:
+
+SpeciesName.fasta.transdecoder.bed
+SpeciesName.fasta.transdecoder.cds
+SpeciesName.fasta.transdecoder.gff3
+SpeciesName.fasta.transdecoder.pep
+
+
+## The .pep file is the final predicted proteins.
+
+------------------------------------------------------------------------------------------------------------------------
+###RUN BUSCO ASSESSMENT FOR 'FINISHED' TRANSCRIPTOMES###
+
+#Used the lineage dataset for metazoans, since there wasn't anything more specific for invertebrates 
+
+run_BUSCO.py -i assembly.txt -o assembly_busco -l metazoa_odb9 -m prot
+
